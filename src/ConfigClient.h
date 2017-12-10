@@ -1,9 +1,21 @@
-#ifndef TimeClient_H
+#ifndef ConfigClient_H
 
-#define TimeClient_H
+#define ConfigClient_H
 
 #include <ESP8266WiFi.h>
 
-void TimeClient_Init(void);
+class ConfigClient {
+
+  String location;
+  String timezone;
+  String wakeupTime;
+
+public:
+  ConfigClient(void);
+  String getLocation(void){return location;};
+  String getTimezone(void){return timezone;};
+  String getWakeupTime(void){return wakeupTime;};
+  void toSerial (void);
+};
 
 #endif

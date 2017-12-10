@@ -1,13 +1,24 @@
 #include "Application.h"
 #include "Wifi.h"
+#include "ConfigClient.h"
+#include "WeatherClient.h"
 #include "TimeClient.h"
+#include <GDBStub.h>
+
+TimeClient timeClient;
 
 void Application_Init(void)
 {
-    Serial.println("Init WakeupDisplay application");
+    Serial.println("[INFO] Init WakeupDisplay application");
     Wifi_Init();
-    TimeClient_Init();
-    //NTPClient_PeriodicNTPCheckInit();   //initialise NTP   periodic update routine
+    ConfigClient configClient;
+    configClient.toSerial();
+    timeClient.initTimeClient(configClient);
+    timeClient.toSerial();
+    WeatherClient weatherClient;
+    weatherClient.initWeatherClient(configClient);
+  //  timeClient.toSerial();
+    // NTPClient_PeriodicNTPCheckInit();   //initialise NTP   periodic update routine
 //  be_Indicators_Init();
 //  be_MQTT_Init();
 //  be_EnergyMonitoring_Init();
@@ -19,7 +30,8 @@ void Application_Init(void)
 void Application_MainLoop(void)
 {
     //Application_Init();
-    delay(10000);
+    delay(5000);
+    timeClient.loop();
 //  be_MQTT_MainLoop();
 //  be_EnergyMonitoring_MainLoop();
 //  be_InputControl_MainLoop();

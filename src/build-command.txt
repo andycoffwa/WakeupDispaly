@@ -1,1 +1,0 @@
-python ~/esptool-master/esptool.py -p /dev/cu.usbserial-DN026EBJ -b 512000  write_flash 0x00000 /Users/andrew/Documents/PlatformIO/Projects/WakeupDisplay-thingdev/.pioenvs/thingdev/firmware.bin 

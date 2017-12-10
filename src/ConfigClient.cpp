@@ -1,25 +1,38 @@
 #include "ArduinoJson.h"
+#include "ConfigClient.h"
 #include <ESP8266WiFi.h>
 
-String urldecode(String str);
-String urlencode(String str);
-unsigned char h2int(char c);
+const char* configServer = "s3-ap-southeast-2.amazonaws.com";
+const int httpsPort = 443;
 
-const char* server = "api.openweathermap.org";
-const int httpPort = 80;
+// Use web browser to view and copy
+// SHA1 fingerprint of the certificate
+//const char* fingerprint = "CF 05 98 89 CA FF 8E D8 5E 5C E0 C2 E4 F7 E6 C3 C7 50 DD 5C";
+const char* fingerprint = "EA DF 49 81 49 50 6B 09 9A FF 0A 98 9B B9 EC C0 8E 1E EA A6";
 
-void TimeClient_Init(void){
-  Serial.println("TimeClient_Inited");
-  StaticJsonBuffer<2000> jsonBuffer;
-  WiFiClient client;
+ConfigClient::ConfigClient(){
+  Serial.println("[INFO] ConfigClient created");
+  StaticJsonBuffer<300> jsonBuffer;
+  WiFiClientSecure client;
 
-  Serial.println("\nStarting connection to server...");
+  Serial.println("\n[INFO] Starting connection to configServer...");
+  if (!client.connect(configServer, httpsPort)) {
+    Serial.println("[ERROR] connection failed");
+    return;
+  }
+
+  if (client.verify(fingerprint, configServer)) {
+    Serial.println("[INFO] certificate matches");
+  } else {
+    Serial.println("[ERROR] certificate doesn't match");
+  }
+
   // if you get a connection, report back via serial:
-  if (client.connect(server, 80)) {
-    Serial.println("connected to weather API");
+  if (client.connect(configServer, httpsPort)) {
+    Serial.println("[INFO] connected to s3 config file");
     // Make a HTTP request:
-    client.println("GET /data/2.5/weather?id=6619279&units=metric&appid=7af4c691121b4c89c797436bbdd22389 HTTP/1.1");
-    client.println("Host: api.openweathermap.org");
+    client.println("GET /wakeup-timer/config.json HTTP/1.1");
+    client.println("Host: s3-ap-southeast-2.amazonaws.com");
     client.println("Connection: close");
     client.println();
   }
@@ -30,92 +43,28 @@ void TimeClient_Init(void){
     String line = client.readStringUntil('\n');
     if (line == "\r") {
       headersReceived = true;
-      Serial.println("headers received");
+      //Serial.println("headers received");
     }
     if (headersReceived) {
       json.concat(line);
     }
   }
-  Serial.println(json);
+
+  JsonObject& jsonObj = jsonBuffer.parseObject(json);
+  //const char* locationChar = jsonObj["location"].as<const char*>();
+  //location = String(locationChar);
+  location = String(jsonObj["location"].as<const char*>());
+  timezone = String(jsonObj["timezone"].as<const char*>());
+  wakeupTime = String(jsonObj["wake-up-time"].as<const char*>());
 }
 
-/*
-
-String urldecode(String str)
-{
-
-    String encodedString="";
-    char c;
-    char code0;
-    char code1;
-    for (int i =0; i < str.length(); i++){
-        c=str.charAt(i);
-      if (c == '+'){
-        encodedString+=' ';
-      }else if (c == '%') {
-        i++;
-        code0=str.charAt(i);
-        i++;
-        code1=str.charAt(i);
-        c = (h2int(code0) << 4) | h2int(code1);
-        encodedString+=c;
-      } else{
-
-        encodedString+=c;
-      }
-
-      yield();
-    }
-
-   return encodedString;
+void ConfigClient::toSerial(void){
+  Serial.println("[INFO] Config");
+  Serial.print("location: ");
+  Serial.println(location);
+  Serial.print("timezone: ");
+  Serial.println(timezone);
+  Serial.print("wake up time: ");
+  Serial.println(wakeupTime);
+  Serial.println("End config");
 }
-
-String urlencode(String str)
-{
-    String encodedString="";
-    char c;
-    char code0;
-    char code1;
-    char code2;
-    for (int i =0; i < str.length(); i++){
-      c=str.charAt(i);
-      if (c == ' '){
-        encodedString+= '+';
-      } else if (isalnum(c)){
-        encodedString+=c;
-      } else{
-        code1=(c & 0xf)+'0';
-        if ((c & 0xf) >9){
-            code1=(c & 0xf) - 10 + 'A';
-        }
-        c=(c>>4)&0xf;
-        code0=c+'0';
-        if (c > 9){
-            code0=c - 10 + 'A';
-        }
-        code2='\0';
-        encodedString+='%';
-        encodedString+=code0;
-        encodedString+=code1;
-        //encodedString+=code2;
-      }
-      yield();
-    }
-    return encodedString;
-
-}
-
-unsigned char h2int(char c)
-{
-    if (c >= '0' && c <='9'){
-        return((unsigned char)c - '0');
-    }
-    if (c >= 'a' && c <='f'){
-        return((unsigned char)c - 'a' + 10);
-    }
-    if (c >= 'A' && c <='F'){
-        return((unsigned char)c - 'A' + 10);
-    }
-    return(0);
-}
-*/

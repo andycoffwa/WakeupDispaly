@@ -1,121 +1,120 @@
+// TODO Fix timezone in url for timezone api
+
 #include "ArduinoJson.h"
 #include <ESP8266WiFi.h>
+#include "TimerObject.h"
+#include "Time.h"
+#include "TimeClient.h"
 
-String urldecode(String str);
-String urlencode(String str);
-unsigned char h2int(char c);
+time_t localDateTime;
 
-const char* server = "api.openweathermap.org";
+TimerObject *clockTimer = new TimerObject(3600000);
+String status;
+const char* localDateTimeStr;
+
+const char* timeServer = "api.timezonedb.com";
 const int httpPort = 80;
+const int httpsPort = 443;
 
-void TimeClient_Init(void){
-  Serial.println("TimeClient_Inited");
-  StaticJsonBuffer<2000> jsonBuffer;
+ConfigClient t_configClient;
+
+void syncTime(void);
+
+TimeClient::TimeClient(void){
+
+}
+
+void TimeClient::initTimeClient(ConfigClient configClient){
+  t_configClient = configClient;
+  syncTime();
+	clockTimer->setOnTimer(&syncTime);
+	clockTimer->Start(); //start the thread.
+}
+
+void TimeClient::loop(void){
+  clockTimer->Update();
+}
+
+void saveTime (String localDateTimeStr){
+
+  int start, end, year, month, day, hour, minute, second = 0;
+
+  end = localDateTimeStr.indexOf("-",start);
+  year = localDateTimeStr.substring(start, end).toInt();
+  start = end + 1;
+  end = localDateTimeStr.indexOf("-", start);
+  month  = localDateTimeStr.substring(start, end).toInt();
+  start = end + 1;
+  end = localDateTimeStr.indexOf(" ");
+  day = localDateTimeStr.substring(start, end).toInt();
+  start = end + 1;
+  end = localDateTimeStr.indexOf(":", start);
+  hour = localDateTimeStr.substring(start, end).toInt();
+  start = end + 1;
+  end = localDateTimeStr.indexOf(":", start);
+  minute = localDateTimeStr.substring(start, end).toInt();
+  start = end + 1;
+  end = localDateTimeStr.length();
+  second = localDateTimeStr.substring(start, end).toInt();
+
+  setTime(hour, minute, second, day, month, year);
+  localDateTime = now();
+}
+
+void syncTime(void){
+  StaticJsonBuffer<600> jsonBuffer;
   WiFiClient client;
 
-  Serial.println("\nStarting connection to server...");
+  String zone = t_configClient.getTimezone();
+
+  Serial.print("\n[INFO] Starting connection to ");
+  Serial.println(timeServer);
   // if you get a connection, report back via serial:
-  if (client.connect(server, 80)) {
-    Serial.println("connected to weather API");
+  if (client.connect(timeServer, httpPort)) {
+    Serial.println("[INFO] connected to timezone API");
     // Make a HTTP request:
-    client.println("GET /data/2.5/weather?id=6619279&units=metric&appid=7af4c691121b4c89c797436bbdd22389 HTTP/1.1");
-    client.println("Host: api.openweathermap.org");
+    client.println("GET /v2/get-time-zone?key=5T7J6OVIZGUW&format=json&zone=Australia/Sydney&by=zone HTTP/1.1");
+    client.println("Host: api.timezonedb.com");
     client.println("Connection: close");
     client.println();
   }
 
   String json = "";
-  bool headersReceived = false;
+  bool startJsonBody = false;
   while (client.connected()) {
     String line = client.readStringUntil('\n');
-    if (line == "\r") {
-      headersReceived = true;
-      Serial.println("headers received");
+    if (line.indexOf('{') >= 0) {
+      startJsonBody = true;
+      //Serial.println("Json body detected");
     }
-    if (headersReceived) {
+    if (startJsonBody) {
       json.concat(line);
     }
   }
-  Serial.println(json);
+  JsonObject& jsonObj = jsonBuffer.parseObject(json);
+  //jsonObj.prettyPrintTo(Serial);
+  status = String(jsonObj["status"].as<const char*>());
+  localDateTimeStr = jsonObj["formatted"].as<const char*>();
+  saveTime(String(localDateTimeStr));
 }
 
-/*
-
-String urldecode(String str)
-{
-
-    String encodedString="";
-    char c;
-    char code0;
-    char code1;
-    for (int i =0; i < str.length(); i++){
-        c=str.charAt(i);
-      if (c == '+'){
-        encodedString+=' ';
-      }else if (c == '%') {
-        i++;
-        code0=str.charAt(i);
-        i++;
-        code1=str.charAt(i);
-        c = (h2int(code0) << 4) | h2int(code1);
-        encodedString+=c;
-      } else{
-
-        encodedString+=c;
-      }
-
-      yield();
-    }
-
-   return encodedString;
+void TimeClient::toSerial(void){
+  Serial.println("[INFO] Time Client ");
+  Serial.print("Status: ");
+  Serial.println(status);
+  Serial.print("Local date time: ");
+  Serial.println(localDateTime);
+  Serial.print("Year: ");
+  Serial.println(year());
+  Serial.print("Month: ");
+  Serial.println(month());
+  Serial.print("Day: ");
+  Serial.println(day());
+  Serial.print("Hour: ");
+  Serial.println(hour());
+  Serial.print("Minute: ");
+  Serial.println(minute());
+  Serial.print("Second: ");
+  Serial.println(second());
+  Serial.println("End Client");
 }
-
-String urlencode(String str)
-{
-    String encodedString="";
-    char c;
-    char code0;
-    char code1;
-    char code2;
-    for (int i =0; i < str.length(); i++){
-      c=str.charAt(i);
-      if (c == ' '){
-        encodedString+= '+';
-      } else if (isalnum(c)){
-        encodedString+=c;
-      } else{
-        code1=(c & 0xf)+'0';
-        if ((c & 0xf) >9){
-            code1=(c & 0xf) - 10 + 'A';
-        }
-        c=(c>>4)&0xf;
-        code0=c+'0';
-        if (c > 9){
-            code0=c - 10 + 'A';
-        }
-        code2='\0';
-        encodedString+='%';
-        encodedString+=code0;
-        encodedString+=code1;
-        //encodedString+=code2;
-      }
-      yield();
-    }
-    return encodedString;
-
-}
-
-unsigned char h2int(char c)
-{
-    if (c >= '0' && c <='9'){
-        return((unsigned char)c - '0');
-    }
-    if (c >= 'a' && c <='f'){
-        return((unsigned char)c - 'a' + 10);
-    }
-    if (c >= 'A' && c <='F'){
-        return((unsigned char)c - 'A' + 10);
-    }
-    return(0);
-}
-*/

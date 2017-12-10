@@ -4,3 +4,4 @@
 .gcc-flags.json
 patformio.ini
 .travis.yml
+*.DS_Store
